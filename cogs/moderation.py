@@ -24,6 +24,7 @@ def get_guild(guild_id: int) -> dict:
     guild.setdefault("stats", {})
     guild.setdefault("mod_roles", [])
     guild.setdefault("log_channel", None)
+    guild.setdefault("emotes", {"case": "✅", "mod": "👑", "check": "✅"})
     save(data)
     return guild
 
@@ -46,6 +47,15 @@ def set_log_channel(guild_id: int, channel_id: int | None):
         guild["log_channel"] = channel_id
     else:
         guild.pop("log_channel", None)
+    save(data)
+
+def get_emotes(guild_id: int) -> dict:
+    return get_guild(guild_id).get("emotes", {"case": "✅", "mod": "👑", "check": "✅"})
+
+def set_emotes(guild_id: int, emotes: dict):
+    data = load()
+    guild = data.setdefault(str(guild_id), {})
+    guild["emotes"] = emotes
     save(data)
 
 def is_mod(interaction: discord.Interaction) -> bool:
@@ -90,12 +100,21 @@ class Moderation(commands.Cog):
 
         guild_data = get_guild(interaction.guild_id)
         case_id = len(guild_data.get("cases", []))
+        emotes = get_emotes(interaction.guild_id)
 
-        embed = discord.Embed(color=0xFF6B6B, timestamp=discord.utils.utcnow())
+        colors = {
+            "banned": 0xFFB6C1,
+            "kicked": 0xFFFACD,
+            "warned": 0xA7C7E7,
+        }
+        color = colors.get(action.lower(), 0xFF6B6B)
+
+        embed = discord.Embed(color=color, timestamp=discord.utils.utcnow())
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="Case", value=f"`{case_id}`", inline=False)
-        embed.add_field(name="Type", value=f"`{action.title()}`", inline=False)
-        embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+
+        embed.add_field(name="Case", value=f"{emotes.get('check', '✅')} `{case_id}`", inline=True)
+        embed.add_field(name="Type", value=f"`{action.title()}`", inline=True)
+        embed.add_field(name="Moderator", value=f"{emotes.get('mod', '👑')} {interaction.user.mention}", inline=True)
         embed.add_field(name="Target", value=target.mention, inline=False)
         if reason:
             embed.add_field(name="Reason", value=reason, inline=False)
@@ -145,6 +164,16 @@ class Moderation(commands.Cog):
     async def modlog_off(self, interaction: discord.Interaction):
         set_log_channel(interaction.guild_id, None)
         await interaction.response.send_message("Public mod logs disabled.", ephemeral=True)
+
+    @app_commands.command(name="modlog_emotes", description="Set custom emotes for the mod log")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modlog_emotes(self, interaction: discord.Interaction, case_emote: str, mod_emote: str, check_emote: str):
+        set_emotes(interaction.guild_id, {
+            "case": case_emote,
+            "mod": mod_emote,
+            "check": check_emote
+        })
+        await interaction.response.send_message("Mod log emotes updated.", ephemeral=True)
 
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)

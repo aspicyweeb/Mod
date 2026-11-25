@@ -138,6 +138,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
+    # ── ROLE ACCESS ─────────────────────────────────────────
     @app_commands.command(name="modroleadd", description="Allow a role to use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
     async def modroleadd(self, interaction: discord.Interaction, role: discord.Role):
@@ -165,6 +166,7 @@ class Moderation(commands.Cog):
         mentions = [f"<@&{rid}>" for rid in roles]
         await interaction.response.send_message("Mod roles:\n" + "\n".join(mentions), ephemeral=True)
 
+    # ── LOGGING ─────────────────────────────────────────────
     @app_commands.command(name="modlog", description="Set the public channel for mod action logs")
     @app_commands.checks.has_permissions(administrator=True)
     async def modlog(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -188,6 +190,16 @@ class Moderation(commands.Cog):
         })
         await interaction.response.send_message("Mod log emotes updated.", ephemeral=True)
 
+    @app_commands.command(name="resetcases", description="Reset all case numbers")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def resetcases(self, interaction: discord.Interaction):
+        data = load()
+        guild = data.setdefault(str(interaction.guild_id), {})
+        guild["cases"] = []
+        save(data)
+        await interaction.response.send_message("Case numbers have been reset.", ephemeral=True)
+
+    # ── ACTIONS ─────────────────────────────────────────────
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
@@ -272,6 +284,7 @@ class Moderation(commands.Cog):
             embed.add_field(name=f"Case #{c['id']} • {c['action']}", value=f"Reason: {c.get('reason', 'None')}\nMod: <@{c['mod']}>", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # ── PURGE ───────────────────────────────────────────────
     @app_commands.command(name="purge", description="Purge recent messages")
     @app_commands.check(is_mod)
     async def purge(self, interaction: discord.Interaction, amount: int = 50):
@@ -319,6 +332,53 @@ class Moderation(commands.Cog):
             await interaction.followup.send(f"Deleted {len(deleted)} text-only messages.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
+
+    # ── LOCK / INFO ─────────────────────────────────────────
+    @app_commands.command(name="lock", description="Lock the current channel")
+    @app_commands.check(is_mod)
+    async def lock(self, interaction: discord.Interaction):
+        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
+        overwrite.send_messages = False
+        await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
+        await interaction.response.send_message("Channel locked.", ephemeral=True)
+
+    @app_commands.command(name="unlock", description="Unlock the current channel")
+    @app_commands.check(is_mod)
+    async def unlock(self, interaction: discord.Interaction):
+        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
+        overwrite.send_messages = None
+        await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
+        await interaction.response.send_message("Channel unlocked.", ephemeral=True)
+
+    @app_commands.command(name="ping", description="Check bot latency")
+    async def ping(self, interaction: discord.Interaction):
+        latency = round(self.bot.latency * 1000)
+        await interaction.response.send_message(f"Pong! `{latency}ms`", ephemeral=True)
+
+    @app_commands.command(name="infoserver", description="View info about this server")
+    async def infoserver(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        embed = discord.Embed(title=guild.name, color=0xA7C7E7)
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        embed.add_field(name="Owner", value=guild.owner.mention if guild.owner else "Unknown", inline=True)
+        embed.add_field(name="Members", value=guild.member_count, inline=True)
+        embed.add_field(name="Channels", value=len(guild.channels), inline=True)
+        embed.add_field(name="Roles", value=len(guild.roles), inline=True)
+        embed.add_field(name="Created", value=discord.utils.format_dt(guild.created_at, "R"), inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="infouser", description="View info about a user")
+    @app_commands.check(is_mod)
+    async def infouser(self, interaction: discord.Interaction, user: discord.Member):
+        embed = discord.Embed(title=str(user), color=0xA7C7E7)
+        embed.set_thumbnail(url=user.display_avatar.url)
+        embed.add_field(name="ID", value=user.id, inline=False)
+        embed.add_field(name="Joined", value=discord.utils.format_dt(user.joined_at, "R") if user.joined_at else "Unknown", inline=True)
+        embed.add_field(name="Account Created", value=discord.utils.format_dt(user.created_at, "R"), inline=True)
+        roles = [r.mention for r in user.roles if r != interaction.guild.default_role]
+        embed.add_field(name=f"Roles ({len(roles)})", value=" ".join(roles) if roles else "None", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))

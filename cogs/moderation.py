@@ -79,11 +79,7 @@ class Moderation(commands.Cog):
         if log_id:
             channel = interaction.guild.get_channel(log_id)
             if isinstance(channel, discord.TextChannel):
-                embed = discord.Embed(
-                    title=action.title(),
-                    color=0xFF6B6B,
-                    timestamp=discord.utils.utcnow()
-                )
+                embed = discord.Embed(title=action.title(), color=0xFF6B6B, timestamp=discord.utils.utcnow())
                 embed.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
                 embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
                 if reason:
@@ -92,24 +88,19 @@ class Moderation(commands.Cog):
                     embed.add_field(name="Details", value=extra, inline=False)
                 try:
                     await channel.send(embed=embed)
-                except discord.Forbidden:
+                except:
                     pass
-
         try:
-            dm = discord.Embed(
-                title=f"You were {action} in {interaction.guild.name}",
-                color=0xFF6B6B
-            )
+            dm = discord.Embed(title=f"You were {action} in {interaction.guild.name}", color=0xFF6B6B)
             if reason:
                 dm.add_field(name="Reason", value=reason, inline=False)
             if extra:
                 dm.add_field(name="Details", value=extra, inline=False)
             dm.set_footer(text="Contact staff if you think this was a mistake.")
             await target.send(embed=dm)
-        except (discord.Forbidden, discord.HTTPException):
+        except:
             pass
 
-    # ── MOD ROLE MANAGEMENT ─────────────────────────────────
     @app_commands.command(name="modrole_add", description="Allow a role to use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
     async def modrole_add(self, interaction: discord.Interaction, role: discord.Role):
@@ -137,7 +128,6 @@ class Moderation(commands.Cog):
         mentions = [f"<@&{rid}>" for rid in roles]
         await interaction.response.send_message("Mod roles:\n" + "\n".join(mentions), ephemeral=True)
 
-    # ── MOD LOG CHANNEL ─────────────────────────────────────
     @app_commands.command(name="modlog", description="Set the public channel for mod action logs")
     @app_commands.checks.has_permissions(administrator=True)
     async def modlog(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -150,62 +140,77 @@ class Moderation(commands.Cog):
         set_log_channel(interaction.guild_id, None)
         await interaction.response.send_message("Public mod logs disabled.", ephemeral=True)
 
-    # ── BAN / UNBAN / KICK ──────────────────────────────────
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
         await interaction.response.defer(ephemeral=True)
-        await member.ban(reason=reason)
-        case = self.add_case(interaction.guild_id, "ban", member.id, interaction.user.id, reason)
-        await self.announce(interaction, "banned", member, reason)
-        await interaction.followup.send(f"Banned {member} (Case #{case})", ephemeral=True)
+        try:
+            await member.ban(reason=reason)
+            case = self.add_case(interaction.guild_id, "ban", member.id, interaction.user.id, reason)
+            await self.announce(interaction, "banned", member, reason)
+            await interaction.followup.send(f"Banned {member} (Case #{case})", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
     @app_commands.command(name="unban", description="Unban by user ID")
     @app_commands.check(is_mod)
     async def unban(self, interaction: discord.Interaction, user_id: str):
         await interaction.response.defer(ephemeral=True)
-        user = await self.bot.fetch_user(int(user_id))
-        await interaction.guild.unban(user)
-        self.add_case(interaction.guild_id, "unban", user.id, interaction.user.id)
-        await self.announce(interaction, "unbanned", user)
-        await interaction.followup.send(f"Unbanned {user}", ephemeral=True)
+        try:
+            user = await self.bot.fetch_user(int(user_id))
+            await interaction.guild.unban(user)
+            self.add_case(interaction.guild_id, "unban", user.id, interaction.user.id)
+            await self.announce(interaction, "unbanned", user)
+            await interaction.followup.send(f"Unbanned {user}", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
     @app_commands.command(name="kick", description="Kick a member")
     @app_commands.check(is_mod)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
         await interaction.response.defer(ephemeral=True)
-        await member.kick(reason=reason)
-        case = self.add_case(interaction.guild_id, "kick", member.id, interaction.user.id, reason)
-        await self.announce(interaction, "kicked", member, reason)
-        await interaction.followup.send(f"Kicked {member} (Case #{case})", ephemeral=True)
+        try:
+            await member.kick(reason=reason)
+            case = self.add_case(interaction.guild_id, "kick", member.id, interaction.user.id, reason)
+            await self.announce(interaction, "kicked", member, reason)
+            await interaction.followup.send(f"Kicked {member} (Case #{case})", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
-    # ── TIMEOUT ─────────────────────────────────────────────
     @app_commands.command(name="timeout", description="Timeout a member")
     @app_commands.check(is_mod)
     async def timeout(self, interaction: discord.Interaction, member: discord.Member, minutes: int, reason: str = "No reason"):
         await interaction.response.defer(ephemeral=True)
-        await member.timeout(timedelta(minutes=minutes), reason=reason)
-        case = self.add_case(interaction.guild_id, "timeout", member.id, interaction.user.id, reason)
-        await self.announce(interaction, "timed out", member, reason, f"{minutes} minutes")
-        await interaction.followup.send(f"Timed out {member} for {minutes}m (Case #{case})", ephemeral=True)
+        try:
+            await member.timeout(timedelta(minutes=minutes), reason=reason)
+            case = self.add_case(interaction.guild_id, "timeout", member.id, interaction.user.id, reason)
+            await self.announce(interaction, "timed out", member, reason, f"{minutes} minutes")
+            await interaction.followup.send(f"Timed out {member} for {minutes}m (Case #{case})", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
     @app_commands.command(name="untimeout", description="Remove timeout")
     @app_commands.check(is_mod)
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
         await interaction.response.defer(ephemeral=True)
-        await member.timeout(None)
-        self.add_case(interaction.guild_id, "untimeout", member.id, interaction.user.id)
-        await self.announce(interaction, "un-timed out", member)
-        await interaction.followup.send(f"Removed timeout from {member}", ephemeral=True)
+        try:
+            await member.timeout(None)
+            self.add_case(interaction.guild_id, "untimeout", member.id, interaction.user.id)
+            await self.announce(interaction, "un-timed out", member)
+            await interaction.followup.send(f"Removed timeout from {member}", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
-    # ── WARN + HISTORY ──────────────────────────────────────
     @app_commands.command(name="warn", description="Warn a member")
     @app_commands.check(is_mod)
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
         await interaction.response.defer(ephemeral=True)
-        case = self.add_case(interaction.guild_id, "warn", member.id, interaction.user.id, reason)
-        await self.announce(interaction, "warned", member, reason)
-        await interaction.followup.send(f"Warned {member} (Case #{case})", ephemeral=True)
+        try:
+            case = self.add_case(interaction.guild_id, "warn", member.id, interaction.user.id, reason)
+            await self.announce(interaction, "warned", member, reason)
+            await interaction.followup.send(f"Warned {member} (Case #{case})", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {type(e).__name__}: {e}", ephemeral=True)
 
     @app_commands.command(name="history", description="View a user's moderation history")
     @app_commands.check(is_mod)
@@ -214,17 +219,11 @@ class Moderation(commands.Cog):
         cases = [c for c in guild["cases"] if c["target"] == user.id]
         if not cases:
             return await interaction.response.send_message("No cases found.", ephemeral=True)
-
         embed = discord.Embed(title=f"History for {user}", color=0xFF6B6B)
         for c in cases[-15:]:
-            embed.add_field(
-                name=f"Case #{c['id']} • {c['action']}",
-                value=f"Reason: {c.get('reason', 'None')}\nMod: <@{c['mod']}>",
-                inline=False
-            )
+            embed.add_field(name=f"Case #{c['id']} • {c['action']}", value=f"Reason: {c.get('reason', 'None')}\nMod: <@{c['mod']}>", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # ── NOTES ───────────────────────────────────────────────
     @app_commands.command(name="notes_add", description="Add a staff note")
     @app_commands.check(is_mod)
     async def notes_add(self, interaction: discord.Interaction, user: discord.User, note: str):
@@ -245,15 +244,17 @@ class Moderation(commands.Cog):
         text = "\n".join(f"**#{n['id']}** {n['note']} (by <@{n['mod']}>)" for n in notes)
         await interaction.response.send_message(text, ephemeral=True)
 
-    # ── PURGE ───────────────────────────────────────────────
     @app_commands.command(name="purge", description="Purge recent messages")
     @app_commands.check(is_mod)
     async def purge(self, interaction: discord.Interaction, amount: int = 50):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(limit=amount)
-        await interaction.followup.send(f"Deleted {len(deleted)} messages.", ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount)
+            await interaction.followup.send(f"Deleted {len(deleted)} messages.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purge_bots", description="Delete recent messages from bots")
     @app_commands.check(is_mod)
@@ -261,8 +262,11 @@ class Moderation(commands.Cog):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(limit=amount, check=lambda m: m.author.bot)
-        await interaction.followup.send(f"Deleted {len(deleted)} bot messages.", ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount, check=lambda m: m.author.bot)
+            await interaction.followup.send(f"Deleted {len(deleted)} bot messages.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purge_users", description="Delete recent messages from humans")
     @app_commands.check(is_mod)
@@ -270,8 +274,11 @@ class Moderation(commands.Cog):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(limit=amount, check=lambda m: not m.author.bot)
-        await interaction.followup.send(f"Deleted {len(deleted)} user messages.", ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount, check=lambda m: not m.author.bot)
+            await interaction.followup.send(f"Deleted {len(deleted)} user messages.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purge_text", description="Delete recent text-only messages")
     @app_commands.check(is_mod)
@@ -279,13 +286,12 @@ class Moderation(commands.Cog):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(
-            limit=amount,
-            check=lambda m: bool(m.content) and not m.embeds and not m.attachments and not m.stickers
-        )
-        await interaction.followup.send(f"Deleted {len(deleted)} text-only messages.", ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount, check=lambda m: bool(m.content) and not m.embeds and not m.attachments and not m.stickers)
+            await interaction.followup.send(f"Deleted {len(deleted)} text-only messages.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    # ── MODSTATS ────────────────────────────────────────────
     @app_commands.command(name="modstats", description="See moderator action counts")
     @app_commands.check(is_mod)
     async def modstats(self, interaction: discord.Interaction):
@@ -293,7 +299,6 @@ class Moderation(commands.Cog):
         stats = guild.get("stats", {})
         if not stats:
             return await interaction.response.send_message("No stats yet.", ephemeral=True)
-
         embed = discord.Embed(title="Mod Stats", color=0xA7C7E7)
         for mod_id, actions in stats.items():
             lines = [f"{action}: {count}" for action, count in actions.items()]

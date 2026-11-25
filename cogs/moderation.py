@@ -154,52 +154,58 @@ class Moderation(commands.Cog):
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
+        await interaction.response.defer(ephemeral=True)
         await member.ban(reason=reason)
         case = self.add_case(interaction.guild_id, "ban", member.id, interaction.user.id, reason)
         await self.announce(interaction, "banned", member, reason)
-        await interaction.response.send_message(f"Banned {member} (Case #{case})", ephemeral=True)
+        await interaction.followup.send(f"Banned {member} (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="unban", description="Unban by user ID")
     @app_commands.check(is_mod)
     async def unban(self, interaction: discord.Interaction, user_id: str):
+        await interaction.response.defer(ephemeral=True)
         user = await self.bot.fetch_user(int(user_id))
         await interaction.guild.unban(user)
         self.add_case(interaction.guild_id, "unban", user.id, interaction.user.id)
         await self.announce(interaction, "unbanned", user)
-        await interaction.response.send_message(f"Unbanned {user}", ephemeral=True)
+        await interaction.followup.send(f"Unbanned {user}", ephemeral=True)
 
     @app_commands.command(name="kick", description="Kick a member")
     @app_commands.check(is_mod)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
+        await interaction.response.defer(ephemeral=True)
         await member.kick(reason=reason)
         case = self.add_case(interaction.guild_id, "kick", member.id, interaction.user.id, reason)
         await self.announce(interaction, "kicked", member, reason)
-        await interaction.response.send_message(f"Kicked {member} (Case #{case})", ephemeral=True)
+        await interaction.followup.send(f"Kicked {member} (Case #{case})", ephemeral=True)
 
     # ── TIMEOUT ─────────────────────────────────────────────
     @app_commands.command(name="timeout", description="Timeout a member")
     @app_commands.check(is_mod)
     async def timeout(self, interaction: discord.Interaction, member: discord.Member, minutes: int, reason: str = "No reason"):
+        await interaction.response.defer(ephemeral=True)
         await member.timeout(timedelta(minutes=minutes), reason=reason)
         case = self.add_case(interaction.guild_id, "timeout", member.id, interaction.user.id, reason)
         await self.announce(interaction, "timed out", member, reason, f"{minutes} minutes")
-        await interaction.response.send_message(f"Timed out {member} for {minutes}m (Case #{case})", ephemeral=True)
+        await interaction.followup.send(f"Timed out {member} for {minutes}m (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="untimeout", description="Remove timeout")
     @app_commands.check(is_mod)
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
+        await interaction.response.defer(ephemeral=True)
         await member.timeout(None)
         self.add_case(interaction.guild_id, "untimeout", member.id, interaction.user.id)
         await self.announce(interaction, "un-timed out", member)
-        await interaction.response.send_message(f"Removed timeout from {member}", ephemeral=True)
+        await interaction.followup.send(f"Removed timeout from {member}", ephemeral=True)
 
     # ── WARN + HISTORY ──────────────────────────────────────
     @app_commands.command(name="warn", description="Warn a member")
     @app_commands.check(is_mod)
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
+        await interaction.response.defer(ephemeral=True)
         case = self.add_case(interaction.guild_id, "warn", member.id, interaction.user.id, reason)
         await self.announce(interaction, "warned", member, reason)
-        await interaction.response.send_message(f"Warned {member} (Case #{case})", ephemeral=True)
+        await interaction.followup.send(f"Warned {member} (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="history", description="View a user's moderation history")
     @app_commands.check(is_mod)

@@ -88,13 +88,20 @@ class Moderation(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return
 
-        embed = discord.Embed(title=action.title(), color=0xFF6B6B, timestamp=discord.utils.utcnow())
-        embed.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
+        guild_data = get_guild(interaction.guild_id)
+        case_id = len(guild_data.get("cases", []))
+
+        embed = discord.Embed(color=0xFF6B6B, timestamp=discord.utils.utcnow())
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="Case", value=f"`{case_id}`", inline=False)
+        embed.add_field(name="Type", value=f"`{action.title()}`", inline=False)
         embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Target", value=target.mention, inline=False)
         if reason:
             embed.add_field(name="Reason", value=reason, inline=False)
         if extra:
             embed.add_field(name="Details", value=extra, inline=False)
+
         try:
             await channel.send(embed=embed)
         except discord.Forbidden:

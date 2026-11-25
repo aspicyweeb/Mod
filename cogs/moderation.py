@@ -20,7 +20,6 @@ def get_guild(guild_id: int) -> dict:
     data = load()
     guild = data.setdefault(str(guild_id), {})
     guild.setdefault("cases", [])
-    guild.setdefault("notes", {})
     guild.setdefault("stats", {})
     guild.setdefault("mod_roles", [])
     guild.setdefault("log_channel", None)
@@ -82,7 +81,6 @@ class Moderation(commands.Cog):
         data = load()
         guild = data.setdefault(str(guild_id), {})
         guild.setdefault("cases", [])
-        guild.setdefault("notes", {})
         guild.setdefault("stats", {})
         guild.setdefault("mod_roles", [])
 
@@ -140,27 +138,27 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
-    @app_commands.command(name="modrole_add", description="Allow a role to use mod commands")
+    @app_commands.command(name="modroleadd", description="Allow a role to use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modrole_add(self, interaction: discord.Interaction, role: discord.Role):
+    async def modroleadd(self, interaction: discord.Interaction, role: discord.Role):
         roles = get_mod_roles(interaction.guild_id)
         if role.id not in roles:
             roles.append(role.id)
             set_mod_roles(interaction.guild_id, roles)
         await interaction.response.send_message(f"Added {role.mention} as a mod role.", ephemeral=True)
 
-    @app_commands.command(name="modrole_remove", description="Remove a role from mod commands")
+    @app_commands.command(name="modroleremove", description="Remove a role from mod commands")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modrole_remove(self, interaction: discord.Interaction, role: discord.Role):
+    async def modroleremove(self, interaction: discord.Interaction, role: discord.Role):
         roles = get_mod_roles(interaction.guild_id)
         if role.id in roles:
             roles.remove(role.id)
             set_mod_roles(interaction.guild_id, roles)
         await interaction.response.send_message(f"Removed {role.mention} from mod roles.", ephemeral=True)
 
-    @app_commands.command(name="modrole_list", description="Show roles that can use mod commands")
+    @app_commands.command(name="modrolelist", description="Show roles that can use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modrole_list(self, interaction: discord.Interaction):
+    async def modrolelist(self, interaction: discord.Interaction):
         roles = get_mod_roles(interaction.guild_id)
         if not roles:
             return await interaction.response.send_message("No mod roles set (admins only).", ephemeral=True)
@@ -173,15 +171,15 @@ class Moderation(commands.Cog):
         set_log_channel(interaction.guild_id, channel.id)
         await interaction.response.send_message(f"Mod logs will post in {channel.mention}", ephemeral=True)
 
-    @app_commands.command(name="modlog_off", description="Turn off public mod logs")
+    @app_commands.command(name="modlogoff", description="Turn off public mod logs")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modlog_off(self, interaction: discord.Interaction):
+    async def modlogoff(self, interaction: discord.Interaction):
         set_log_channel(interaction.guild_id, None)
         await interaction.response.send_message("Public mod logs disabled.", ephemeral=True)
 
-    @app_commands.command(name="modlog_emotes", description="Set custom emotes for the mod log")
+    @app_commands.command(name="modlogemotes", description="Set custom emotes for the mod log")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modlog_emotes(self, interaction: discord.Interaction, check_emote: str, mod_emote: str, target_before: str, target_after: str):
+    async def modlogemotes(self, interaction: discord.Interaction, check_emote: str, mod_emote: str, target_before: str, target_after: str):
         set_emotes(interaction.guild_id, {
             "check": check_emote,
             "mod": mod_emote,
@@ -274,26 +272,6 @@ class Moderation(commands.Cog):
             embed.add_field(name=f"Case #{c['id']} • {c['action']}", value=f"Reason: {c.get('reason', 'None')}\nMod: <@{c['mod']}>", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="notes_add", description="Add a staff note")
-    @app_commands.check(is_mod)
-    async def notes_add(self, interaction: discord.Interaction, user: discord.User, note: str):
-        data = load()
-        guild = data.setdefault(str(interaction.guild_id), {})
-        notes = guild.setdefault("notes", {}).setdefault(str(user.id), [])
-        notes.append({"id": len(notes) + 1, "note": note, "mod": interaction.user.id})
-        save(data)
-        await interaction.response.send_message("Note added.", ephemeral=True)
-
-    @app_commands.command(name="notes_view", description="View staff notes")
-    @app_commands.check(is_mod)
-    async def notes_view(self, interaction: discord.Interaction, user: discord.User):
-        guild = get_guild(interaction.guild_id)
-        notes = guild.get("notes", {}).get(str(user.id), [])
-        if not notes:
-            return await interaction.response.send_message("No notes.", ephemeral=True)
-        text = "\n".join(f"**#{n['id']}** {n['note']} (by <@{n['mod']}>)" for n in notes)
-        await interaction.response.send_message(text, ephemeral=True)
-
     @app_commands.command(name="purge", description="Purge recent messages")
     @app_commands.check(is_mod)
     async def purge(self, interaction: discord.Interaction, amount: int = 50):
@@ -306,9 +284,9 @@ class Moderation(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    @app_commands.command(name="purge_bots", description="Delete recent messages from bots")
+    @app_commands.command(name="purgebots", description="Delete recent messages from bots")
     @app_commands.check(is_mod)
-    async def purge_bots(self, interaction: discord.Interaction, amount: int = 100):
+    async def purgebots(self, interaction: discord.Interaction, amount: int = 100):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
@@ -318,9 +296,9 @@ class Moderation(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    @app_commands.command(name="purge_users", description="Delete recent messages from humans")
+    @app_commands.command(name="purgeusers", description="Delete recent messages from humans")
     @app_commands.check(is_mod)
-    async def purge_users(self, interaction: discord.Interaction, amount: int = 100):
+    async def purgeusers(self, interaction: discord.Interaction, amount: int = 100):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
@@ -330,9 +308,9 @@ class Moderation(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    @app_commands.command(name="purge_text", description="Delete recent text-only messages")
+    @app_commands.command(name="purgetext", description="Delete recent text-only messages")
     @app_commands.check(is_mod)
-    async def purge_text(self, interaction: discord.Interaction, amount: int = 100):
+    async def purgetext(self, interaction: discord.Interaction, amount: int = 100):
         if amount > 1000:
             amount = 1000
         await interaction.response.defer(ephemeral=True)
@@ -341,19 +319,6 @@ class Moderation(commands.Cog):
             await interaction.followup.send(f"Deleted {len(deleted)} text-only messages.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
-
-    @app_commands.command(name="modstats", description="See moderator action counts")
-    @app_commands.check(is_mod)
-    async def modstats(self, interaction: discord.Interaction):
-        guild = get_guild(interaction.guild_id)
-        stats = guild.get("stats", {})
-        if not stats:
-            return await interaction.response.send_message("No stats yet.", ephemeral=True)
-        embed = discord.Embed(title="Mod Stats", color=0xA7C7E7)
-        for mod_id, actions in stats.items():
-            lines = [f"{action}: {count}" for action, count in actions.items()]
-            embed.add_field(name=f"<@{mod_id}>", value="\n".join(lines), inline=True)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))

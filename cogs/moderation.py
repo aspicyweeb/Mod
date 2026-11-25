@@ -22,7 +22,8 @@ def get_guild(guild_id: int) -> dict:
         "cases": [],
         "notes": {},
         "stats": {},
-        "mod_roles": []
+        "mod_roles": [],
+        "log_channel": None
     })
 
 def get_mod_roles(guild_id: int) -> list[int]:
@@ -32,6 +33,18 @@ def set_mod_roles(guild_id: int, role_ids: list[int]):
     data = load()
     guild = data.setdefault(str(guild_id), {})
     guild["mod_roles"] = role_ids
+    save(data)
+
+def get_log_channel(guild_id: int) -> int | None:
+    return get_guild(guild_id).get("log_channel")
+
+def set_log_channel(guild_id: int, channel_id: int | None):
+    data = load()
+    guild = data.setdefault(str(guild_id), {})
+    if channel_id:
+        guild["log_channel"] = channel_id
+    else:
+        guild.pop("log_channel", None)
     save(data)
 
 def is_mod(interaction: discord.Interaction) -> bool:
@@ -61,6 +74,41 @@ class Moderation(commands.Cog):
         save(data)
         return case_id
 
+    async def announce(self, interaction: discord.Interaction, action: str, target: discord.Member | discord.User, reason: str = None, extra: str = ""):
+        log_id = get_log_channel(interaction.guild_id)
+        if log_id:
+            channel = interaction.guild.get_channel(log_id)
+            if isinstance(channel, discord.TextChannel):
+                embed = discord.Embed(
+                    title=action.title(),
+                    color=0xFF6B6B,
+                    timestamp=discord.utils.utcnow()
+                )
+                embed.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
+                embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+                if reason:
+                    embed.add_field(name="Reason", value=reason, inline=False)
+                if extra:
+                    embed.add_field(name="Details", value=extra, inline=False)
+                try:
+                    await channel.send(embed=embed)
+                except discord.Forbidden:
+                    pass
+
+        try:
+            dm = discord.Embed(
+                title=f"You were {action} in {interaction.guild.name}",
+                color=0xFF6B6B
+            )
+            if reason:
+                dm.add_field(name="Reason", value=reason, inline=False)
+            if extra:
+                dm.add_field(name="Details", value=extra, inline=False)
+            dm.set_footer(text="Contact staff if you think this was a mistake.")
+            await target.send(embed=dm)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
     # ── MOD ROLE MANAGEMENT ─────────────────────────────────
     @app_commands.command(name="modrole_add", description="Allow a role to use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
@@ -89,12 +137,26 @@ class Moderation(commands.Cog):
         mentions = [f"<@&{rid}>" for rid in roles]
         await interaction.response.send_message("Mod roles:\n" + "\n".join(mentions), ephemeral=True)
 
+    # ── MOD LOG CHANNEL ─────────────────────────────────────
+    @app_commands.command(name="modlog", description="Set the public channel for mod action logs")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modlog(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        set_log_channel(interaction.guild_id, channel.id)
+        await interaction.response.send_message(f"Mod logs will post in {channel.mention}", ephemeral=True)
+
+    @app_commands.command(name="modlog_off", description="Turn off public mod logs")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modlog_off(self, interaction: discord.Interaction):
+        set_log_channel(interaction.guild_id, None)
+        await interaction.response.send_message("Public mod logs disabled.", ephemeral=True)
+
     # ── BAN / UNBAN / KICK ──────────────────────────────────
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
         await member.ban(reason=reason)
         case = self.add_case(interaction.guild_id, "ban", member.id, interaction.user.id, reason)
+        await self.announce(interaction, "banned", member, reason)
         await interaction.response.send_message(f"Banned {member} (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="unban", description="Unban by user ID")
@@ -103,6 +165,7 @@ class Moderation(commands.Cog):
         user = await self.bot.fetch_user(int(user_id))
         await interaction.guild.unban(user)
         self.add_case(interaction.guild_id, "unban", user.id, interaction.user.id)
+        await self.announce(interaction, "unbanned", user)
         await interaction.response.send_message(f"Unbanned {user}", ephemeral=True)
 
     @app_commands.command(name="kick", description="Kick a member")
@@ -110,6 +173,7 @@ class Moderation(commands.Cog):
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
         await member.kick(reason=reason)
         case = self.add_case(interaction.guild_id, "kick", member.id, interaction.user.id, reason)
+        await self.announce(interaction, "kicked", member, reason)
         await interaction.response.send_message(f"Kicked {member} (Case #{case})", ephemeral=True)
 
     # ── TIMEOUT ─────────────────────────────────────────────
@@ -118,6 +182,7 @@ class Moderation(commands.Cog):
     async def timeout(self, interaction: discord.Interaction, member: discord.Member, minutes: int, reason: str = "No reason"):
         await member.timeout(timedelta(minutes=minutes), reason=reason)
         case = self.add_case(interaction.guild_id, "timeout", member.id, interaction.user.id, reason)
+        await self.announce(interaction, "timed out", member, reason, f"{minutes} minutes")
         await interaction.response.send_message(f"Timed out {member} for {minutes}m (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="untimeout", description="Remove timeout")
@@ -125,6 +190,7 @@ class Moderation(commands.Cog):
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
         await member.timeout(None)
         self.add_case(interaction.guild_id, "untimeout", member.id, interaction.user.id)
+        await self.announce(interaction, "un-timed out", member)
         await interaction.response.send_message(f"Removed timeout from {member}", ephemeral=True)
 
     # ── WARN + HISTORY ──────────────────────────────────────
@@ -132,6 +198,7 @@ class Moderation(commands.Cog):
     @app_commands.check(is_mod)
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
         case = self.add_case(interaction.guild_id, "warn", member.id, interaction.user.id, reason)
+        await self.announce(interaction, "warned", member, reason)
         await interaction.response.send_message(f"Warned {member} (Case #{case})", ephemeral=True)
 
     @app_commands.command(name="history", description="View a user's moderation history")

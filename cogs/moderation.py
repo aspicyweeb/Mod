@@ -1,3 +1,4 @@
+Here’s the updated cogs/moderation.py with /lock and /unlock removed:
 import json
 import discord
 from discord import app_commands
@@ -197,18 +198,6 @@ class Moderation(commands.Cog):
         save(data)
         await interaction.response.send_message("Case numbers have been reset.", ephemeral=True)
 
-    @app_commands.command(name="clearhistory", description="Clear a user's moderation history")
-    @app_commands.check(is_mod)
-    async def clearhistory(self, interaction: discord.Interaction, user: discord.User):
-        data = load()
-        guild = data.setdefault(str(interaction.guild_id), {})
-        cases = guild.get("cases", [])
-        before = len(cases)
-        guild["cases"] = [c for c in cases if c.get("target") != user.id]
-        removed = before - len(guild["cases"])
-        save(data)
-        await interaction.response.send_message(f"Cleared {removed} case(s) for {user.mention}.", ephemeral=True)
-
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
@@ -341,22 +330,6 @@ class Moderation(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    @app_commands.command(name="lock", description="Lock the current channel")
-    @app_commands.check(is_mod)
-    async def lock(self, interaction: discord.Interaction):
-        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
-        overwrite.send_messages = False
-        await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        await interaction.response.send_message("Channel locked.", ephemeral=True)
-
-    @app_commands.command(name="unlock", description="Unlock the current channel")
-    @app_commands.check(is_mod)
-    async def unlock(self, interaction: discord.Interaction):
-        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
-        overwrite.send_messages = None
-        await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        await interaction.response.send_message("Channel unlocked.", ephemeral=True)
-
     @app_commands.command(name="ping", description="Check bot latency")
     async def ping(self, interaction: discord.Interaction):
         latency = round(self.bot.latency * 1000)
@@ -389,3 +362,4 @@ class Moderation(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))
+Replace the file on GitHub and let Railway redeploy. /lock and /unlock are gone.

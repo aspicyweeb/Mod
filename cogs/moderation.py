@@ -24,7 +24,12 @@ def get_guild(guild_id: int) -> dict:
     guild.setdefault("stats", {})
     guild.setdefault("mod_roles", [])
     guild.setdefault("log_channel", None)
-    guild.setdefault("emotes", {"case": "✅", "mod": "👑", "check": "✅"})
+    guild.setdefault("emotes", {
+        "check": "✅",
+        "mod": "👑",
+        "target_before": "▶",
+        "target_after": "🎯"
+    })
     save(data)
     return guild
 
@@ -50,7 +55,12 @@ def set_log_channel(guild_id: int, channel_id: int | None):
     save(data)
 
 def get_emotes(guild_id: int) -> dict:
-    return get_guild(guild_id).get("emotes", {"case": "✅", "mod": "👑", "check": "✅"})
+    return get_guild(guild_id).get("emotes", {
+        "check": "✅",
+        "mod": "👑",
+        "target_before": "▶",
+        "target_after": "🎯"
+    })
 
 def set_emotes(guild_id: int, emotes: dict):
     data = load()
@@ -112,14 +122,18 @@ class Moderation(commands.Cog):
         embed = discord.Embed(color=color, timestamp=discord.utils.utcnow())
         embed.set_thumbnail(url=target.display_avatar.url)
 
-        embed.add_field(name="Case", value=f"{emotes.get('check', '✅')} `{case_id}`", inline=True)
-        embed.add_field(name="Type", value=f"`{action.title()}`", inline=True)
-        embed.add_field(name="Moderator", value=f"{emotes.get('mod', '👑')} {interaction.user.mention}", inline=True)
-        embed.add_field(name="Target", value=target.mention, inline=False)
+        embed.add_field(name="Case:", value=f"`{case_id}` {emotes.get('check', '✅')}", inline=False)
+        embed.add_field(name="Type:", value=f"`{action.title()}`", inline=False)
+        embed.add_field(name="Moderator:", value=f"{interaction.user.mention} {emotes.get('mod', '👑')}", inline=False)
+        embed.add_field(
+            name="Target:",
+            value=f"{emotes.get('target_before', '▶')} {target.mention} {emotes.get('target_after', '🎯')}",
+            inline=False
+        )
         if reason:
-            embed.add_field(name="Reason", value=reason, inline=False)
+            embed.add_field(name="Reason:", value=reason, inline=False)
         if extra:
-            embed.add_field(name="Details", value=extra, inline=False)
+            embed.add_field(name="Details:", value=extra, inline=False)
 
         try:
             await channel.send(embed=embed)
@@ -167,11 +181,12 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="modlog_emotes", description="Set custom emotes for the mod log")
     @app_commands.checks.has_permissions(administrator=True)
-    async def modlog_emotes(self, interaction: discord.Interaction, case_emote: str, mod_emote: str, check_emote: str):
+    async def modlog_emotes(self, interaction: discord.Interaction, check_emote: str, mod_emote: str, target_before: str, target_after: str):
         set_emotes(interaction.guild_id, {
-            "case": case_emote,
+            "check": check_emote,
             "mod": mod_emote,
-            "check": check_emote
+            "target_before": target_before,
+            "target_after": target_after
         })
         await interaction.response.send_message("Mod log emotes updated.", ephemeral=True)
 

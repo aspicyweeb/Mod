@@ -18,13 +18,14 @@ def save(data: dict):
 
 def get_guild(guild_id: int) -> dict:
     data = load()
-    return data.setdefault(str(guild_id), {
-        "cases": [],
-        "notes": {},
-        "stats": {},
-        "mod_roles": [],
-        "log_channel": None
-    })
+    guild = data.setdefault(str(guild_id), {})
+    guild.setdefault("cases", [])
+    guild.setdefault("notes", {})
+    guild.setdefault("stats", {})
+    guild.setdefault("mod_roles", [])
+    guild.setdefault("log_channel", None)
+    save(data)
+    return guild
 
 def get_mod_roles(guild_id: int) -> list[int]:
     return get_guild(guild_id).get("mod_roles", [])
@@ -59,7 +60,12 @@ class Moderation(commands.Cog):
 
     def add_case(self, guild_id: int, action: str, target_id: int, mod_id: int, reason: str = None):
         data = load()
-        guild = data.setdefault(str(guild_id), {"cases": [], "notes": {}, "stats": {}, "mod_roles": []})
+        guild = data.setdefault(str(guild_id), {})
+        guild.setdefault("cases", [])
+        guild.setdefault("notes", {})
+        guild.setdefault("stats", {})
+        guild.setdefault("mod_roles", [])
+
         case_id = len(guild["cases"]) + 1
         guild["cases"].append({
             "id": case_id,
@@ -76,29 +82,22 @@ class Moderation(commands.Cog):
 
     async def announce(self, interaction: discord.Interaction, action: str, target: discord.Member | discord.User, reason: str = None, extra: str = ""):
         log_id = get_log_channel(interaction.guild_id)
-        if log_id:
-            channel = interaction.guild.get_channel(log_id)
-            if isinstance(channel, discord.TextChannel):
-                embed = discord.Embed(title=action.title(), color=0xFF6B6B, timestamp=discord.utils.utcnow())
-                embed.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
-                embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
-                if reason:
-                    embed.add_field(name="Reason", value=reason, inline=False)
-                if extra:
-                    embed.add_field(name="Details", value=extra, inline=False)
-                try:
-                    await channel.send(embed=embed)
-                except:
-                    pass
+        if not log_id:
+            return
+        channel = interaction.guild.get_channel(log_id)
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        embed = discord.Embed(title=action.title(), color=0xFF6B6B, timestamp=discord.utils.utcnow())
+        embed.add_field(name="User", value=f"{target.mention} (`{target.id}`)", inline=False)
+        embed.add_field(name="Moderator", value=interaction.user.mention, inline=False)
+        if reason:
+            embed.add_field(name="Reason", value=reason, inline=False)
+        if extra:
+            embed.add_field(name="Details", value=extra, inline=False)
         try:
-            dm = discord.Embed(title=f"You were {action} in {interaction.guild.name}", color=0xFF6B6B)
-            if reason:
-                dm.add_field(name="Reason", value=reason, inline=False)
-            if extra:
-                dm.add_field(name="Details", value=extra, inline=False)
-            dm.set_footer(text="Contact staff if you think this was a mistake.")
-            await target.send(embed=dm)
-        except:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
             pass
 
     @app_commands.command(name="modrole_add", description="Allow a role to use mod commands")

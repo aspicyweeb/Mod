@@ -138,7 +138,6 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
-    # ── ROLE ACCESS ─────────────────────────────────────────
     @app_commands.command(name="modroleadd", description="Allow a role to use mod commands")
     @app_commands.checks.has_permissions(administrator=True)
     async def modroleadd(self, interaction: discord.Interaction, role: discord.Role):
@@ -166,7 +165,6 @@ class Moderation(commands.Cog):
         mentions = [f"<@&{rid}>" for rid in roles]
         await interaction.response.send_message("Mod roles:\n" + "\n".join(mentions), ephemeral=True)
 
-    # ── LOGGING ─────────────────────────────────────────────
     @app_commands.command(name="modlog", description="Set the public channel for mod action logs")
     @app_commands.checks.has_permissions(administrator=True)
     async def modlog(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -199,7 +197,18 @@ class Moderation(commands.Cog):
         save(data)
         await interaction.response.send_message("Case numbers have been reset.", ephemeral=True)
 
-    # ── ACTIONS ─────────────────────────────────────────────
+    @app_commands.command(name="clearhistory", description="Clear a user's moderation history")
+    @app_commands.check(is_mod)
+    async def clearhistory(self, interaction: discord.Interaction, user: discord.User):
+        data = load()
+        guild = data.setdefault(str(interaction.guild_id), {})
+        cases = guild.get("cases", [])
+        before = len(cases)
+        guild["cases"] = [c for c in cases if c.get("target") != user.id]
+        removed = before - len(guild["cases"])
+        save(data)
+        await interaction.response.send_message(f"Cleared {removed} case(s) for {user.mention}.", ephemeral=True)
+
     @app_commands.command(name="ban", description="Ban a member")
     @app_commands.check(is_mod)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
@@ -284,7 +293,6 @@ class Moderation(commands.Cog):
             embed.add_field(name=f"Case #{c['id']} • {c['action']}", value=f"Reason: {c.get('reason', 'None')}\nMod: <@{c['mod']}>", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # ── PURGE ───────────────────────────────────────────────
     @app_commands.command(name="purge", description="Purge recent messages")
     @app_commands.check(is_mod)
     async def purge(self, interaction: discord.Interaction, amount: int = 50):
@@ -333,7 +341,6 @@ class Moderation(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
-    # ── LOCK / INFO ─────────────────────────────────────────
     @app_commands.command(name="lock", description="Lock the current channel")
     @app_commands.check(is_mod)
     async def lock(self, interaction: discord.Interaction):

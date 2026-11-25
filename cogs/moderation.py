@@ -1,4 +1,3 @@
-Here’s the updated cogs/moderation.py with /lock and /unlock removed:
 import json
 import discord
 from discord import app_commands
@@ -362,4 +361,3 @@ class Moderation(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))
-Replace the file on GitHub and let Railway redeploy. /lock and /unlock are gone.

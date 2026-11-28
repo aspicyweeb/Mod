@@ -7,6 +7,12 @@ from datetime import timedelta
 
 DATA_FILE = Path("/data/mod.json")
 
+IMAGE_TYPES = {
+    "image/png", "image/jpeg", "image/jpg", "image/gif",
+    "image/webp", "image/bmp", "image/svg+xml"
+}
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg")
+
 def load() -> dict:
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     if DATA_FILE.exists():
@@ -72,6 +78,19 @@ def is_mod(interaction: discord.Interaction) -> bool:
         return True
     allowed = get_mod_roles(interaction.guild_id)
     return any(role.id in allowed for role in interaction.user.roles)
+
+def is_image_message(message: discord.Message) -> bool:
+    for att in message.attachments:
+        if att.content_type and att.content_type.lower() in IMAGE_TYPES:
+            return True
+        if att.filename and att.filename.lower().endswith(IMAGE_EXTENSIONS):
+            return True
+    for embed in message.embeds:
+        if embed.image or embed.thumbnail:
+            return True
+        if embed.type in ("image", "gifv", "video"):
+            return True
+    return False
 
 class Moderation(commands.Cog):
     def __init__(self, bot):
@@ -282,22 +301,49 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="purge", description="Purge recent messages")
+    @app_commands.describe(
+        amount="How many messages to check (1–1000)",
+        images_only="Only delete messages that contain images"
+    )
     @app_commands.check(is_mod)
-    async def purge(self, interaction: discord.Interaction, amount: int = 50):
-        if amount > 1000:
-            amount = 1000
+    async def purge(
+        self,
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 1000] = 50,
+        images_only: bool = False
+    ):
         await interaction.response.defer(ephemeral=True)
         try:
-            deleted = await interaction.channel.purge(limit=amount)
-            await interaction.followup.send(f"Deleted {len(deleted)} messages.", ephemeral=True)
+            check = is_image_message if images_only else None
+            deleted = await interaction.channel.purge(limit=amount, check=check)
+            label = "image messages" if images_only else "messages"
+            await interaction.followup.send(f"Deleted {len(deleted)} {label}.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Failed: {e}", ephemeral=True)
+
+    @app_commands.command(name="purgeimages", description="Delete recent messages that contain images")
+    @app_commands.describe(amount="How many messages to check (1–1000)")
+    @app_commands.check(is_mod)
+    async def purgeimages(
+        self,
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 1000] = 100
+    ):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount, check=is_image_message)
+            await interaction.followup.send(f"Deleted {len(deleted)} image messages.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purgebots", description="Delete recent messages from bots")
+    @app_commands.describe(amount="How many messages to check (1–1000)")
     @app_commands.check(is_mod)
-    async def purgebots(self, interaction: discord.Interaction, amount: int = 100):
-        if amount > 1000:
-            amount = 1000
+    async def purgebots(
+        self,
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 1000] = 100
+    ):
         await interaction.response.defer(ephemeral=True)
         try:
             deleted = await interaction.channel.purge(limit=amount, check=lambda m: m.author.bot)
@@ -306,10 +352,13 @@ class Moderation(commands.Cog):
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purgeusers", description="Delete recent messages from humans")
+    @app_commands.describe(amount="How many messages to check (1–1000)")
     @app_commands.check(is_mod)
-    async def purgeusers(self, interaction: discord.Interaction, amount: int = 100):
-        if amount > 1000:
-            amount = 1000
+    async def purgeusers(
+        self,
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 1000] = 100
+    ):
         await interaction.response.defer(ephemeral=True)
         try:
             deleted = await interaction.channel.purge(limit=amount, check=lambda m: not m.author.bot)
@@ -318,13 +367,19 @@ class Moderation(commands.Cog):
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
 
     @app_commands.command(name="purgetext", description="Delete recent text-only messages")
+    @app_commands.describe(amount="How many messages to check (1–1000)")
     @app_commands.check(is_mod)
-    async def purgetext(self, interaction: discord.Interaction, amount: int = 100):
-        if amount > 1000:
-            amount = 1000
+    async def purgetext(
+        self,
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 1000] = 100
+    ):
         await interaction.response.defer(ephemeral=True)
         try:
-            deleted = await interaction.channel.purge(limit=amount, check=lambda m: bool(m.content) and not m.embeds and not m.attachments and not m.stickers)
+            deleted = await interaction.channel.purge(
+                limit=amount,
+                check=lambda m: bool(m.content) and not m.embeds and not m.attachments and not m.stickers
+            )
             await interaction.followup.send(f"Deleted {len(deleted)} text-only messages.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Failed: {e}", ephemeral=True)
